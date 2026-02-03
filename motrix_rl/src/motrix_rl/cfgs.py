@@ -302,3 +302,19 @@ class navigation:
         # Medium-sized network (default configuration, suitable for most tasks)
         policy_hidden_layer_sizes: tuple[int, ...] = (256, 128, 64)
         value_hidden_layer_sizes: tuple[int, ...] = (256, 128, 64)
+
+    @rlcfg("anymal_c_navigation_rough")
+    @dataclass
+    class AnymalCRoughPPOConfig(AnymalCPPOConfig):
+        # Larger network for rough terrain
+        policy_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
+        value_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
+
+    @rlcfg("vbot_navigation_section001")
+    @dataclass
+    class VBotSection001PPOConfig(AnymalCPPOConfig):
+        # Larger network for rough terrain
+        policy_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
+        value_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
+
+
