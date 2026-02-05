@@ -49,7 +49,10 @@ def _get_cfg(
     cfg["lambda"] = rlcfg.lambda_param
     cfg["learning_rate"] = rlcfg.learning_rate
     cfg["learning_rate_scheduler"] = KLAdaptiveRL
-    cfg["learning_rate_scheduler_kwargs"] = {"kl_threshold": rlcfg.learning_rate_scheduler_kl_threshold}
+    cfg["learning_rate_scheduler_kwargs"] = {
+        "kl_threshold": rlcfg.learning_rate_scheduler_kl_threshold,
+        "min_lr": rlcfg.learning_rate_scheduler_min_lr,
+    }
     cfg["random_timesteps"] = rlcfg.random_timesteps
     cfg["learning_starts"] = rlcfg.learning_starts
     cfg["grad_norm_clip"] = rlcfg.grad_norm_clip
@@ -148,6 +151,7 @@ class Trainer:
     _sim_backend: str
     _rlcfg: PPOCfg
     _enable_render: bool
+    _load_checkpoint: str
 
     def __init__(
         self,
@@ -155,6 +159,7 @@ class Trainer:
         sim_backend: str = None,
         enable_render: bool = False,
         cfg_override: dict = None,
+        load_checkpoint: str = None,
     ) -> None:
         rlcfg = registry.default_rl_cfg(env_name, "skrl", backend="torch")
         if cfg_override is not None:
@@ -163,6 +168,7 @@ class Trainer:
         self._env_name = env_name
         self._sim_backend = sim_backend
         self._enable_render = enable_render
+        self._load_checkpoint = load_checkpoint
 
     def train(self) -> None:
         """
@@ -175,6 +181,8 @@ class Trainer:
         models = self._make_model(skrl_env, rlcfg)
         ppo_cfg = _get_cfg(rlcfg, skrl_env, log_dir=get_log_dir(self._env_name))
         agent = self._make_agent(models, skrl_env, ppo_cfg)
+        if self._load_checkpoint:
+            agent.load(self._load_checkpoint)
         cfg_trainer = {
             "timesteps": rlcfg.max_batch_env_steps,
             "headless": not self._enable_render,
