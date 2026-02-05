@@ -353,7 +353,6 @@ class VBotLongCourseEnvCfg(VBotStairsEnvCfg):
     control_config: ControlConfig = field(default_factory=ControlConfig)
 
 @registry.envcfg("vbot_navigation_section001")
-#通过 @registry.envcfg("vbot_navigation_section001") 注册
 @dataclass
 class VBotSection001EnvCfg(VBotStairsEnvCfg):
     """VBot Section01单独训练配置 - 高台楼梯地形"""
@@ -396,3 +395,4 @@ class VBotSection001EnvCfg(VBotStairsEnvCfg):
     init_state: InitState = field(default_factory=InitState)
     commands: Commands = field(default_factory=Commands)
     control_config: ControlConfig = field(default_factory=ControlConfig)
+

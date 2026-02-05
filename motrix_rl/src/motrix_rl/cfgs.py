@@ -307,14 +307,26 @@ class navigation:
     @dataclass
     class AnymalCRoughPPOConfig(AnymalCPPOConfig):
         # Larger network for rough terrain
-        policy_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
-        value_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
+        policy_hidden_layer_sizes: tuple[int, ...] = (256, 128, 64)
+        value_hidden_layer_sizes: tuple[int, ...] = (256, 128, 64)
 
     @rlcfg("vbot_navigation_section001")
     @dataclass
     class VBotSection001PPOConfig(AnymalCPPOConfig):
-        # Larger network for rough terrain
-        policy_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
-        value_hidden_layer_sizes: tuple[int, ...] = (512, 256, 128)
-
+        """
+        VBot Section001 (平地/导航) PPO 算法配置
+        
+        因为是平地任务，使用与 AnymalCPPOConfig 相同的
+        中等规模网络 (256, 128, 64) 即可满足需求。
+        """
+        # ===== Network Architecture =====
+        # 显式声明使用中等网络（其实父类默认就是这个，写出来是为了清晰）
+        policy_hidden_layer_sizes: tuple[int, ...] = (256, 128, 64)
+        value_hidden_layer_sizes: tuple[int, ...] = (256, 128, 64)
+        num_envs: int = 2048  # Number of parallel environments during training
+        
+        # ===== Optional =====
+        # 如果这是非常平坦的地面，可以稍微减小 entropy_coef 以加速收敛
+        # (假设父类中有定义该字段，通常默认为 0.01 或 0.005)
+        # entropy_coef: float = 0.005
 

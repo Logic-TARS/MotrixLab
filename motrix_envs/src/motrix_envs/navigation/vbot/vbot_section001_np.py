@@ -258,21 +258,6 @@ class VBotSection001Env(NpEnv):
         heading = np.arctan2(siny_cosp, cosy_cosp)
         return heading
     
-    # def _update_target_marker(self, data: mtx.SceneData, pose_commands: np.ndarray):
-    #     """更新目标位置标记的位置和朝向"""
-    #     num_envs = data.shape[0]
-    #     all_dof_pos = data.dof_pos.copy()
-        
-    #     for env_idx in range(num_envs):
-    #         target_x = float(pose_commands[env_idx, 0])
-    #         target_y = float(pose_commands[env_idx, 1])
-    #         target_yaw = float(pose_commands[env_idx, 2])
-    #         all_dof_pos[env_idx, self._target_marker_dof_start:self._target_marker_dof_end] = [
-    #             target_x, target_y, target_yaw
-    #         ]
-        
-    #     data.set_dof_pos(all_dof_pos, self._model)
-    #     self._model.forward_kinematic(data)
     def _update_target_marker(self, data: mtx.SceneData, pose_commands: np.ndarray):
         """更新目标位置标记的位置和朝向"""
         num_envs = data.shape[0]
@@ -282,7 +267,6 @@ class VBotSection001Env(NpEnv):
             target_x = float(pose_commands[env_idx, 0])
             target_y = float(pose_commands[env_idx, 1])
             target_yaw = float(pose_commands[env_idx, 2])
-            
             all_dof_pos[env_idx, self._target_marker_dof_start:self._target_marker_dof_end] = [
                 target_x, target_y, target_yaw
             ]
@@ -475,11 +459,11 @@ class VBotSection001Env(NpEnv):
     
     def _compute_terminated(self, state: NpEnvState) -> NpEnvState:
         """
-        重写终止条件，包含基座接触、侧翻和数值异常
+        重写终止条件，与locomotion stairs完全一致
         """
         data = state.data
         
-        # 1. 基座接触地面终止
+        # 基座接触地面终止（使用传感器）
         try:
             base_contact_value = self._model.get_sensor_value("base_contact", data)
             if base_contact_value.ndim == 0:
@@ -491,172 +475,19 @@ class VBotSection001Env(NpEnv):
         except Exception as e:
             print(f"[Warning] 无法读取base_contact传感器: {e}")
             base_contact = np.zeros(self._num_envs, dtype=bool)
-            
-        # 2. 侧翻终止
-        pose = self._body.get_pose(data)
-        root_quat = pose[:, 3:7]
-        proj_g = self._compute_projected_gravity(root_quat)
-        gxy = np.linalg.norm(proj_g[:, :2], axis=1)
-        gz = proj_g[:, 2]
-        tilt_angle = np.arctan2(gxy, np.abs(gz))
-        side_flip = tilt_angle > np.deg2rad(75)
         
-        # 3. 关节速度超限终止
-        dof_vel = self.get_dof_vel(data)
-        vel_max = np.abs(dof_vel).max(axis=1)
-        vel_extreme = (np.isnan(dof_vel).any(axis=1)) | (np.isinf(dof_vel).any(axis=1)) | (vel_max > 1e6)
-        
-        # 4. 任务完成终止 (Success: 到达且停稳)
-        # 获取目标信息
-        pose_commands = state.info["pose_commands"]
-        target_position = pose_commands[:, :2]
-        
-        # 获取当前状态
-        pose = self._body.get_pose(data)
-        robot_position = pose[:, :2]
-        gyro = self._model.get_sensor_value(self._cfg.sensor.base_gyro, data)
-        
-        # 计算距离
-        distance = np.linalg.norm(target_position - robot_position, axis=1)
-        
-        # 判定条件
-        reached = distance < 0.3
-        stopped = np.abs(gyro[:, 2]) < 0.05
-        success = reached & stopped
-        
-        terminated = base_contact | side_flip | vel_extreme | success
-        
-        # Debug success
-        if np.any(success):
-             print(f"Episode Success! Envs: {np.where(success)[0]}")
+        terminated = base_contact.copy()
         
         return state.replace(terminated=terminated)
     
     def _compute_reward(self, data: mtx.SceneData, info: dict, velocity_commands: np.ndarray) -> np.ndarray:
         """
         导航任务奖励计算
-        velocity_commands: [num_envs, 3] - (vx, vy, vyaw)
         """
-        # 计算终止条件惩罚
-        termination_penalty = np.zeros(self._num_envs, dtype=np.float32)
+        cfg = self._cfg
         
-        # 检查关节速度是否超限
-        dof_vel = self.get_dof_vel(data)
-        vel_max = np.abs(dof_vel).max(axis=1)
-        vel_overflow = vel_max > self._cfg.max_dof_vel
-        vel_extreme = (np.isnan(dof_vel).any(axis=1)) | (np.isinf(dof_vel).any(axis=1)) | (vel_max > 1e6)
-        termination_penalty = np.where(vel_overflow | vel_extreme, -20.0, termination_penalty)
-        
-        # 基座接触地面惩罚
-        try:
-            base_contact_value = self._model.get_sensor_value("base_contact", data)
-            if base_contact_value.ndim == 0:
-                base_contact = np.array([base_contact_value > 0.01], dtype=bool)
-            elif base_contact_value.shape[0] != self._num_envs:
-                 base_contact = np.full(self._num_envs, base_contact_value.flatten()[0] > 0.01, dtype=bool)
-            else:
-                base_contact = (base_contact_value > 0.01).flatten()[:self._num_envs]
-        except:
-            base_contact = np.zeros(self._num_envs, dtype=bool)
-        
-        termination_penalty = np.where(base_contact, -20.0, termination_penalty)
-        
-        # 侧翻惩罚
-        pose = self._body.get_pose(data)
-        root_quat = pose[:, 3:7]
-        proj_g = self._compute_projected_gravity(root_quat)
-        gxy = np.linalg.norm(proj_g[:, :2], axis=1)
-        gz = proj_g[:, 2]
-        tilt_angle = np.arctan2(gxy, np.abs(gz))
-        side_flip_mask = tilt_angle > np.deg2rad(75)
-        termination_penalty = np.where(side_flip_mask, -20.0, termination_penalty)
-
-        # 1. 线速度跟踪奖励
-        base_lin_vel = self._model.get_sensor_value(self._cfg.sensor.base_linvel, data)
-        lin_vel_error = np.sum(np.square(velocity_commands[:, :2] - base_lin_vel[:, :2]), axis=1)
-        tracking_lin_vel = np.exp(-lin_vel_error / 0.25)
-
-        # 2. 角速度跟踪奖励
-        gyro = self._model.get_sensor_value(self._cfg.sensor.base_gyro, data)
-        ang_vel_error = np.square(velocity_commands[:, 2] - gyro[:, 2])
-        tracking_ang_vel = np.exp(-ang_vel_error / 0.25)
-        
-        # 获取位置和朝向用于到达判定
-        robot_position = pose[:, :2]
-        target_position = info["pose_commands"][:, :2]
-        
-        position_error = target_position - robot_position
-        distance_to_target = np.linalg.norm(position_error, axis=1)
-        
-        position_threshold = 0.3
-        reached_all = distance_to_target < position_threshold
-        
-        # 首次到达奖励
-        info["ever_reached"] = info.get("ever_reached", np.zeros(self._num_envs, dtype=bool))
-        first_time_reach = np.logical_and(reached_all, ~info["ever_reached"])
-        info["ever_reached"] = np.logical_or(info["ever_reached"], reached_all)
-        arrival_bonus = np.where(first_time_reach, 10.0, 0.0)
-        
-        # 接近奖励
-        if "min_distance" not in info:
-            info["min_distance"] = distance_to_target.copy()
-        distance_improvement = info["min_distance"] - distance_to_target
-        info["min_distance"] = np.minimum(info["min_distance"], distance_to_target)
-        approach_reward = np.clip(distance_improvement * 10.0, -1.0, 1.0)
-        
-        # 3. 姿态稳定性惩罚
-        orientation_penalty = (
-            np.square(proj_g[:, 0]) + 
-            np.square(proj_g[:, 1]) + 
-            np.square(proj_g[:, 2] + 1.0)
-        )
-        
-        # 停止奖励
-        speed_xy = np.linalg.norm(base_lin_vel[:, :2], axis=1)
-        zero_ang_mask = np.abs(gyro[:, 2]) < 0.05
-        zero_ang_bonus = np.where(np.logical_and(reached_all, zero_ang_mask), 6.0, 0.0)
-        stop_base = 2 * (0.8 * np.exp(-((speed_xy / 0.2) ** 2)) + 1.2 * np.exp(-((np.abs(gyro[:, 2]) / 0.1) ** 4)))
-        stop_bonus = np.where(reached_all, stop_base + zero_ang_bonus, 0.0)
-        
-        # 惩罚项
-        lin_vel_z_penalty = np.square(base_lin_vel[:, 2])
-        ang_vel_xy_penalty = np.sum(np.square(gyro[:, :2]), axis=1)
-        torque_penalty = np.sum(np.square(data.actuator_ctrls), axis=1)
-        dof_vel_penalty = np.sum(np.square(dof_vel), axis=1)
-        
-        action_diff = info["current_actions"] - info["last_actions"]
-        action_rate_penalty = np.sum(np.square(action_diff), axis=1)
-        
-        # 组合奖励
-        time_penalty = -0.1  # 时间惩罚，鼓励快速完成
-        
-        reward = np.where(
-            reached_all,
-            (
-                stop_bonus + arrival_bonus
-                - 0.5 * lin_vel_z_penalty
-                - 0.05 * ang_vel_xy_penalty
-                - 0.0 * orientation_penalty
-                - 0.0 * torque_penalty
-                - 0.0 * dof_vel_penalty
-                - 0.001 * action_rate_penalty
-                + termination_penalty
-                + time_penalty
-            ),
-            (
-                2.5 * tracking_lin_vel
-                + 0.5 * tracking_ang_vel
-                + approach_reward
-                - 0.5 * lin_vel_z_penalty
-                - 0.05 * ang_vel_xy_penalty
-                - 0.0 * orientation_penalty
-                - 0.0 * torque_penalty
-                - 0.0 * dof_vel_penalty
-                - 0.001 * action_rate_penalty
-                + termination_penalty
-                + time_penalty
-            )
-        )
+        # 计算总奖励
+        reward = np.array([0])
         
         return reward
 
@@ -672,8 +503,7 @@ class VBotSection001Env(NpEnv):
             size=(num_envs, 2)
         )
         robot_init_xy = self.spawn_center[:2] + random_xy  # [num_envs, 2]
-        # 增加初始高度偏移，防止落地即接触
-        terrain_heights = np.full(num_envs, self.spawn_center[2] + 0.15, dtype=np.float32)
+        terrain_heights = np.full(num_envs, self.spawn_center[2], dtype=np.float32)  # 使用配置的高度
         
         
         # 组合XYZ坐标
