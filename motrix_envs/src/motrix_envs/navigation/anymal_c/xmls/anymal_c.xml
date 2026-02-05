@@ -15,16 +15,16 @@
         </default>
       </default>
       <default class="collision">
-        <geom group="3" type="cylinder" contype="0" conaffinity="0"/>
+        <geom group="3" type="cylinder" contype="1" conaffinity="1"/>
         <default class="foot">
-          <geom type="sphere" size="0.03" pos="0 0 0.02325" priority="1" solimp="0.015 1 0.03" contype="0" conaffinity="3"
+          <geom type="sphere" size="0.03" pos="0 0 0.02325" priority="1" solimp="0.015 1 0.03" contype="1" conaffinity="1"
             condim="6"
             friction="0.8 0.02 0.01" />
         </default>
       </default>
 
       <default class="affine">
-        <position kp="200" kv="1" ctrlrange="-6.28 6.28" forcerange="-140 140" />
+        <position kp="200" kv="10" ctrlrange="-6.28 6.28" forcerange="-140 140" />
       </default>
     </default>
   </default>
