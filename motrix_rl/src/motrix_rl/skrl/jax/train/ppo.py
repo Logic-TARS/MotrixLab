@@ -52,7 +52,7 @@ def _get_cfg(
     cfg["learning_rate_scheduler"] = KLAdaptiveRL
     cfg["learning_rate_scheduler_kwargs"] = {
         "kl_threshold": rlcfg.learning_rate_scheduler_kl_threshold,
-        "min_lr": rlcfg.learning_rate_scheduler_min_lr,
+        "min_lr": getattr(rlcfg, "learning_rate_scheduler_min_lr", 0.0),
     }
     cfg["random_timesteps"] = rlcfg.random_timesteps
     cfg["learning_starts"] = rlcfg.learning_starts

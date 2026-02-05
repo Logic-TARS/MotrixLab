@@ -1,18 +1,3 @@
-# Copyright (C) 2020-2025 Motphys Technology Co., Ltd. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-
-
 import gymnasium as gym
 import motrixsim as mtx
 import numpy as np
@@ -431,8 +416,12 @@ class AnymalCRoughEnv(NpEnv):
         stop_base = 2 * (0.8 * np.exp(-((speed_xy / 0.2) ** 2)) + 1.2 * np.exp(-((np.abs(gyro[:, 2]) / 0.1) ** 4)))
         stop_bonus = np.where(reached_all, stop_base + zero_ang_bonus, 0.0)
 
-        # 4. Z-axis linear velocity penalty
+        # # 4. Z-axis linear velocity penalty
+        # lin_vel_z_penalty = np.square(base_lin_vel[:, 2])
+        # [修改] 限制 Z 轴速度惩罚的上限，例如最大限制在 1.0 (即对应 1m/s 的平方)
+        # 或者直接让它不要超过一个固定的扣分值
         lin_vel_z_penalty = np.square(base_lin_vel[:, 2])
+        lin_vel_z_penalty = np.clip(lin_vel_z_penalty, 0, 10.0) # 限制最大惩罚力度
 
         # 5. XY-axis angular velocity penalty
         ang_vel_xy_penalty = np.sum(np.square(gyro[:, :2]), axis=1)
@@ -528,9 +517,14 @@ class AnymalCRoughEnv(NpEnv):
         side_flip_mask = tilt_angle > np.deg2rad(75)
         terminated = np.logical_or(terminated, side_flip_mask)
         
-        # Over speed termination
-        over_speed = np.sum(np.square(self.get_local_linvel(data)[:, :2]), axis=1) > 1e8
+        # [修改] Over speed termination
+        # 设定为 100 (即 10m/s 的平方)，超过这个速度说明仿真已经炸了
+        over_speed = np.sum(np.square(self.get_local_linvel(data)[:, :2]), axis=1) > 100.0 
         terminated = np.logical_or(terminated, over_speed)
+
+        # [新增] Border termination (越界直接导致结束)
+        is_out = self.check_border(data)
+        terminated = np.logical_or(terminated, is_out)  # <--- 加上这一行
 
         return state.replace(terminated=terminated)
 
