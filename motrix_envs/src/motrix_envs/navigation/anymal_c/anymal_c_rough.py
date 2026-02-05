@@ -46,13 +46,13 @@ class AnymalCRoughEnv(NpEnv):
         self._num_dof_vel = self._model.num_dof_vel
         self._num_action = self._model.num_actuators
 
-        self.height_list = np.array([-2.5, 0.5, 2.0])
-        offset_h = [[2, 2, 1, 1, 1], [2, 2, 1, 1, 2], [2, 1, 1, 1, 1], [2, 1, 1, 1, 1], [2, 1, 1, 1, 1]]
+        self.height_list = np.array([0.5, 1.0, 2.5])
+        offset_h = [[2, 2, 1, 1, 1], [2, 2, 1, 1, 1], [2, 2, 1, 1, 1], [2, 2, 1, 1, 1], [2, 1, 1, 1, 1]]
         offset = []
         for i in range(5):
             for j in range(5):
                 h_index = offset_h[j][i]
-                offset.append([(i - 2) * 8.0, (j - 2) * 8.0, self.height_list[h_index]])
+                offset.append([(i - 2) * 9.0, (j - 2) * 9.0, self.height_list[h_index]])
         self.offset_list = np.array(offset)
 
         self._init_dof_pos = self._model.compute_init_dof_pos()
@@ -307,7 +307,7 @@ class AnymalCRoughEnv(NpEnv):
     
     def check_border(self, data):
         # check whether the robot reaching into the terrain border
-        border_size = 19.0
+        border_size = 27.0
         position = self._body.get_position(data)
         is_out = (np.square(position[:, :2]) > border_size**2).any(axis=1)
         return is_out

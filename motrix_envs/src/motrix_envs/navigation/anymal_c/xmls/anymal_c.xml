@@ -1,7 +1,7 @@
 <mujoco model="anymal_c">
   <compiler angle="radian" autolimits="true" />
 
-  <option cone="elliptic" impratio="100" iterations="60"/>
+  <option timestep="0.002" cone="elliptic" impratio="100" iterations="50"/>
 
   <default>
     <material reflectance="0.5" metallic="0.0" roughness="0.7"/>
